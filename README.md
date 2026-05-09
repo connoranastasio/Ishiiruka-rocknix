@@ -2,7 +2,7 @@
 
 > **Prerelease / Proof of Concept.** This is a work in progress. Online play works, but there are known issues documented below. Contributions welcome.
 
-A port of [Slippi Ishiiruka](https://github.com/project-slippi/Ishiiruka) to ROCKNIX on aarch64 devices. Tested on the **AYN Thor Max** (Snapdragon 8 Gen 2, Adreno 740). The AYN Odin2 shares the same SoC and should work but has not been tested yet. I don't have any other ROCKNIX devices to test on.
+A port of [Slippi Ishiiruka](https://github.com/project-slippi/Ishiiruka) to ROCKNIX on aarch64 devices. Tested on the **AYN Thor Max** (Snapdragon 8 Gen 2, Adreno 740). The AYN Odin2 shares the same SoC and should work but has not been tested yet. I don't have any other devices to test on.
 
 > **ROCKNIX compatibility note:** [ROCKNIX](https://github.com/ROCKNIX/distribution-nightly) is itself still in prerelease and its features change frequently. This port was developed with **ROCKNIX nightly-20260508**. Newer nightly builds may change the display server, audio stack, or system library paths in ways that break compatibility. If something stops working after a ROCKNIX update, check the known issues section and open an issue with your nightly version.
 
