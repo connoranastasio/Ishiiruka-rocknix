@@ -93,3 +93,10 @@ Tools/*.zs-old
 *.recipe
 
 Data/Sys/GameFiles/GALE01/install.bat
+
+# ROCKNIX build artifacts
+dist/
+build.log
+
+# Claude Code session data (may contain sensitive info)
+.claude/

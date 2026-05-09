@@ -1,0 +1,219 @@
+#!/usr/bin/env bash
+# slippi-account — manage multiple Slippi user.json profiles
+#
+# Usage:
+#   slippi-account list
+#   slippi-account show
+#   slippi-account use <name>
+#   slippi-account save <name>
+#   slippi-account import <name> [file]
+#   slippi-account remove <name>
+#
+# Profiles are stored alongside user.json in the Slippi config directory.
+#
+# Path resolution (first match wins):
+#   1. $SLIPPI_USER_DIR        — set by the portable-mode shim in the bundle
+#   2. $XDG_CONFIG_HOME/SlippiOnline/Slippi  — standard XDG path
+#   3. ~/.config/SlippiOnline/Slippi          — fallback
+
+set -euo pipefail
+
+if [[ -n "${SLIPPI_USER_DIR:-}" ]]; then
+    SLIPPI_DIR="$SLIPPI_USER_DIR"
+else
+    SLIPPI_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/SlippiOnline/Slippi"
+fi
+PROFILES_DIR="$SLIPPI_DIR/profiles"
+USER_JSON="$SLIPPI_DIR/user.json"
+
+# --- helpers -----------------------------------------------------------------
+
+die() { echo "error: $*" >&2; exit 1; }
+
+require_name() {
+    [[ -n "${1:-}" ]] || die "profile name required"
+    [[ "$1" =~ ^[A-Za-z0-9_-]+$ ]] || die "name must be alphanumeric (a-z, 0-9, _, -)"
+}
+
+profile_path() { echo "$PROFILES_DIR/$1.json"; }
+
+# Pull a string field out of a JSON file without requiring jq.
+# Works for simple flat string fields; good enough for user.json.
+json_get() {
+    local file="$1" key="$2"
+    grep -o "\"${key}\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" "$file" 2>/dev/null \
+        | head -1 \
+        | sed 's/.*:[[:space:]]*"\(.*\)"/\1/'
+}
+
+ensure_dirs() {
+    mkdir -p "$PROFILES_DIR" "$SLIPPI_DIR"
+}
+
+# --- commands ----------------------------------------------------------------
+
+cmd_list() {
+    ensure_dirs
+    local files=( "$PROFILES_DIR"/*.json )
+    if [[ ! -e "${files[0]}" ]]; then
+        echo "No profiles saved yet."
+        echo "  Use 'slippi-account save <name>' or 'slippi-account import <name> [file]'"
+        return
+    fi
+
+    # Figure out the active connect code for highlighting
+    local active_code=""
+    if [[ -f "$USER_JSON" ]]; then
+        active_code=$(json_get "$USER_JSON" "connectCode")
+    fi
+
+    printf "%-20s  %-16s  %s\n" "NAME" "CONNECT CODE" "DISPLAY NAME"
+    printf "%-20s  %-16s  %s\n" "----" "------------" "------------"
+    for f in "${files[@]}"; do
+        local name code display marker
+        name=$(basename "$f" .json)
+        code=$(json_get "$f" "connectCode")
+        display=$(json_get "$f" "displayName")
+        marker=""
+        [[ "$code" == "$active_code" && -n "$active_code" ]] && marker=" *"
+        printf "%-20s  %-16s  %s%s\n" "$name" "$code" "$display" "$marker"
+    done
+    echo
+    echo "  * = currently active"
+}
+
+cmd_show() {
+    if [[ ! -f "$USER_JSON" ]]; then
+        echo "No active account (user.json not found)."
+        return
+    fi
+    local code display uid
+    code=$(json_get "$USER_JSON" "connectCode")
+    display=$(json_get "$USER_JSON" "displayName")
+    uid=$(json_get "$USER_JSON" "uid")
+    echo "Active account:"
+    echo "  Connect code : $code"
+    echo "  Display name : $display"
+    echo "  UID          : $uid"
+}
+
+cmd_use() {
+    local name="$1"
+    require_name "$name"
+    local src
+    src=$(profile_path "$name")
+    [[ -f "$src" ]] || die "profile '$name' not found (run 'slippi-account list')"
+    ensure_dirs
+    cp "$src" "$USER_JSON"
+    local code display
+    code=$(json_get "$USER_JSON" "connectCode")
+    display=$(json_get "$USER_JSON" "displayName")
+    echo "Switched to '$name' ($code — $display)"
+}
+
+cmd_save() {
+    local name="$1"
+    require_name "$name"
+    [[ -f "$USER_JSON" ]] || die "no active user.json found at $USER_JSON"
+    ensure_dirs
+    local dest
+    dest=$(profile_path "$name")
+    cp "$USER_JSON" "$dest"
+    local code display
+    code=$(json_get "$dest" "connectCode")
+    display=$(json_get "$dest" "displayName")
+    echo "Saved current account as '$name' ($code — $display)"
+}
+
+cmd_import() {
+    local name="$1" src="${2:-}"
+    require_name "$name"
+    ensure_dirs
+    local dest
+    dest=$(profile_path "$name")
+
+    if [[ -n "$src" ]]; then
+        [[ -f "$src" ]] || die "file not found: $src"
+        cp "$src" "$dest"
+    else
+        echo "Paste user.json content, then press Ctrl-D:"
+        cat > "$dest"
+    fi
+
+    # Basic validation: check we got something parseable
+    local code
+    code=$(json_get "$dest" "connectCode")
+    if [[ -z "$code" ]]; then
+        rm -f "$dest"
+        die "could not find 'connectCode' in the provided JSON — is it a valid user.json?"
+    fi
+    local display
+    display=$(json_get "$dest" "displayName")
+    echo "Imported '$name' ($code — $display)"
+}
+
+cmd_remove() {
+    local name="$1"
+    require_name "$name"
+    local target
+    target=$(profile_path "$name")
+    [[ -f "$target" ]] || die "profile '$name' not found"
+
+    # Warn if removing the active profile
+    local active_code code
+    active_code=$(json_get "$USER_JSON" "connectCode" 2>/dev/null || true)
+    code=$(json_get "$target" "connectCode")
+    if [[ -n "$active_code" && "$code" == "$active_code" ]]; then
+        echo "Warning: '$name' is currently the active account."
+        read -r -p "Remove anyway? [y/N] " confirm
+        [[ "$confirm" =~ ^[Yy]$ ]] || { echo "Aborted."; exit 0; }
+    fi
+
+    rm "$target"
+    echo "Removed profile '$name'"
+}
+
+cmd_help() {
+    cat <<'EOF'
+slippi-account — manage multiple Slippi user.json profiles
+
+USAGE
+  slippi-account <command> [args]
+
+COMMANDS
+  list                   List all saved profiles
+  show                   Show the currently active account
+  use   <name>           Activate a profile (copies it to user.json)
+  save  <name>           Save the current user.json as a named profile
+  import <name> [file]   Import a profile from a file path (or stdin if omitted)
+  remove <name>          Delete a saved profile
+
+PROFILES
+  Stored in: ~/.config/SlippiOnline/profiles/
+  Active at: ~/.config/SlippiOnline/Slippi/user.json
+
+TYPICAL WORKFLOW
+  # On your PC (after logging in with the Slippi Launcher), copy user.json
+  # to the device, then import it:
+  slippi-account import myaccount ~/path/to/user.json
+
+  # Later, switch accounts:
+  slippi-account use myaccount
+
+  # Save the currently loaded account under a name:
+  slippi-account save otheraccount
+EOF
+}
+
+# --- dispatch ----------------------------------------------------------------
+
+case "${1:-help}" in
+    list)   cmd_list ;;
+    show)   cmd_show ;;
+    use)    cmd_use    "${2:-}" ;;
+    save)   cmd_save   "${2:-}" ;;
+    import) cmd_import "${2:-}" "${3:-}" ;;
+    remove) cmd_remove "${2:-}" ;;
+    help|--help|-h) cmd_help ;;
+    *) die "unknown command '${1}' — run 'slippi-account help'" ;;
+esac
