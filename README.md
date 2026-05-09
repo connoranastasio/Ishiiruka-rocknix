@@ -27,8 +27,10 @@ The following issues are known and not yet fixed:
 - **GTK warnings on startup** (`gtk_box_gadget_distribute`, `Could not load a pixbuf from bullet-symbolic.svg`). These are cosmetic — settings dialogs render slightly incorrectly but function normally. Does not affect gameplay.
 - **"Desync risk" warning during gameplay** Triggered by `EnableGPUTextureDecoding = True`, which we require on Adreno to fix texture artifacts. This setting only affects rendering, not game state, and should not be able to cause a desync. Warning is a very likely a false positive, and I've had no issues so far.
 - ~~**Settings changed in the GUI may not persist correctly.** All important settings are managed via the deploy script and written directly to ini files. Use the deploy script to change settings rather than the in-game GUI.~~ Fixed.
-- **No GameCube controller adapter support verified yet.** Not really an issue, but I just haven't tested it yet. Played using an Input Integrity adapter. The udev rule is deployed so it might work, idk.
+- **Official GameCube controller adapter support verified yet.** Not really an issue, but I just haven't tested it yet. The udev rule is deployed so it might work, idk. Played using an Input Integrity adapter. GCPocket+ should also work. 
+- **Half-Rate Polling** Input Integrity adapter polls at 500hz instead of 1000hz. Will troubleshoot after first release.
 
+  
 ---
 
 ## Requirements
@@ -41,6 +43,7 @@ The following issues are known and not yet fixed:
 
 ## To Do:
 - Installer with instructions
+- Fix controller polling rate
 
 
 
