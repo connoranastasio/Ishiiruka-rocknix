@@ -1,7 +1,5 @@
 # Slippi Dolphin for ROCKNIX (aarch64)
 
-> **Prerelease / Proof of Concept.** This is a work in progress. Online play works, but there are known issues documented below. Contributions welcome.
-
 A port of [Slippi Ishiiruka](https://github.com/project-slippi/Ishiiruka) to ROCKNIX on aarch64 devices. Tested on the **AYN Thor Max** (Snapdragon 8 Gen 2, Adreno 740). The AYN Odin2 shares the same SoC and should work but has not been tested yet. I don't have any other devices to test on.
 
 > **ROCKNIX compatibility note:** [ROCKNIX](https://github.com/ROCKNIX/distribution-nightly) is itself still in prerelease and its features change frequently. This port was developed with **ROCKNIX nightly-20260508**. Newer nightly builds may change the display server, audio stack, or system library paths in ways that break compatibility. If something stops working after a ROCKNIX update, check the known issues section and open an issue with your nightly version.
@@ -24,11 +22,11 @@ The initial build had several issues on aarch64 + Adreno GPUs that needed to be 
 
 The following issues are known and not yet fixed:
 
-- **Launch and exit must be done over SSH.** There is no in-game button combo to quit yet, and no EmulationStation integration. You must SSH into the device to launch and kill the process. See [Usage](#usage) below. 
-- **~10-15 second boot delay before the game starts.** The Vulkan backend pre-compiles all cached shader pipelines synchronously before launching the game. The cache grows with playtime. Fix in progress (maybe async compilation after boot, during matchmaking window?).
+- ~~**Launch and exit must be done over SSH.** There is no in-game button combo to quit yet, and no EmulationStation integration. You must SSH into the device to launch and kill the process. See [Usage](#usage) below.~~ Can now launch through the ports menu in ES, and quit by pressing start+select on the handheld.
+- ~~**~10-15 second boot delay before the game starts.** The Vulkan backend pre-compiles all cached shader pipelines synchronously before launching the game. The cache grows with playtime. Fix in progress (maybe async compilation after boot, during matchmaking window?).~~ Fixed.
 - **GTK warnings on startup** (`gtk_box_gadget_distribute`, `Could not load a pixbuf from bullet-symbolic.svg`). These are cosmetic — settings dialogs render slightly incorrectly but function normally. Does not affect gameplay.
 - **"Desync risk" warning during gameplay** Triggered by `EnableGPUTextureDecoding = True`, which we require on Adreno to fix texture artifacts. This setting only affects rendering, not game state, and should not be able to cause a desync. Warning is a very likely a false positive, and I've had no issues so far.
-- **Settings changed in the GUI may not persist correctly.** All important settings are managed via the deploy script and written directly to ini files. Use the deploy script to change settings rather than the in-game GUI.
+- ~~**Settings changed in the GUI may not persist correctly.** All important settings are managed via the deploy script and written directly to ini files. Use the deploy script to change settings rather than the in-game GUI.~~ Fixed.
 - **No GameCube controller adapter support verified yet.** Not really an issue, but I just haven't tested it yet. Played using an Input Integrity adapter. The udev rule is deployed so it might work, idk.
 
 ---
@@ -41,40 +39,10 @@ The following issues are known and not yet fixed:
 
 ---
 
-## Install (pre-built) (SOON!!)
+## To Do:
+- Installer with instructions
 
-Download the latest release tarball and extract to `/storage/`:
 
-```sh
-curl -L https://github.com/connoranastasio/Ishiiruka-rocknix/releases/latest/download/slippi-dolphin-rocknix.tar.gz \
-  | tar -xz -C /storage/
-```
-
----
-
-## Usage
-
-### Launch
-
-SSH into the device and run:
-
-```sh
-/storage/slippi-dolphin/slippi-dolphin -e /path/to/melee.iso
-```
-
-The launcher sets all required environment variables, pins CPU to performance mode, and starts the game. The Slippi interface will appear on the device screen.
-
-### Exit
-
-From another SSH session (or the same one if you launched in background with `&`):
-
-```sh
-killall dolphin-emu
-```
-
-Or press `Ctrl+C` in the terminal where it was launched. Both send a clean shutdown signal and preserve the shader cache.
-
----
 
 ## Build from source
 
@@ -118,6 +86,7 @@ ROCKNIX ships a broken gdk-pixbuf where the loaders cache references files that 
 apt-get install -y meson libpng-dev libjpeg62-turbo-dev
 bash scripts/build-gdk-pixbuf.sh
 ```
+Likely not needed on other distros.
 
 ### 4. Deploy to device
 
