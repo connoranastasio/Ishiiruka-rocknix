@@ -146,8 +146,6 @@ void OSDMessageHandler(const char *message, u32 color, u32 duration_ms)
 
 CEXISlippi::CEXISlippi()
 {
-	INFO_LOG(SLIPPI, "EXI SLIPPI Constructor called.");
-
 	// @TODO: For mainline port, ISO file path can't be fetched this way. Look at the following:
 	// https://github.com/dolphin-emu/dolphin/blob/7f450f1d7e7d37bd2300f3a2134cb443d07251f9/Source/Core/Core/Movie.cpp#L246-L249
 	std::string isoPath = SConfig::GetInstance().m_strFilename;
@@ -200,9 +198,6 @@ CEXISlippi::CEXISlippi()
 	    0x20, // Final Destination
 	};
 
-	//    auto spt = SlippiPremadeText();
-	//    spt.GetPremadeTextData(SlippiPremadeText::SPT_CHAT_P1, "Rapito", "Test");
-	//    spt.GetPremadeTextData(SlippiPremadeText::SPT_CHAT_P1, "ラピト", "Test");
 }
 
 CEXISlippi::~CEXISlippi()

@@ -516,6 +516,7 @@ bool ObjectCache::ValidatePipelineCache(const u8* data, size_t data_length)
 
 void ObjectCache::DestroyPipelineCache()
 {
+	SavePipelineCache();
 	ClearPipelineCache();
 
 	vkDestroyPipelineCache(g_vulkan_context->GetDevice(), m_pipeline_cache, nullptr);

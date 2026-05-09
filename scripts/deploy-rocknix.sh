@@ -187,7 +187,18 @@ cp "$BINARIES/portable.txt" "$DIST/portable.txt"
 #   SlotA = 255            — managed by Slippi launcher
 #   MemcardAPath/B         — managed by Slippi launcher
 
-mkdir -p "$DIST/User/Config"
+mkdir -p \
+    "$DIST/User/Config" \
+    "$DIST/User/Cache/Shaders" \
+    "$DIST/User/Cache/ShadersUIDS" \
+    "$DIST/User/Logs" \
+    "$DIST/User/Slippi" \
+    "$DIST/User/GC" \
+    "$DIST/User/StateSaves" \
+    "$DIST/User/ScreenShots" \
+    "$DIST/User/Load" \
+    "$DIST/User/Dump" \
+    "$DIST/User/Maps"
 
 cat > "$DIST/User/Config/Dolphin.ini" <<'DLINI'
 [Display]
@@ -229,9 +240,14 @@ AutoDiscChange = True
 [DSP]
 EnableJIT = True
 DumpAudio = False
-Backend = Cubeb
+Backend = ALSA
 Volume = 100
 DSPThread = True
+[General]
+ISOPath0 = /storage/roms/gamecube
+ISOPaths = 1
+RecursiveISOPaths = False
+DefaultISO = /storage/roms/gamecube/melee102.iso
 DLINI
 
 cat > "$DIST/User/Config/GFX.ini" <<'GFXINI'
@@ -296,94 +312,30 @@ WaitForShaderCompilation = True
 EnableGPUTextureDecoding = True
 GFXINI
 
-echo "==> Wrote configs mirroring ROCKNIX native Dolphin (GPU texture decode, Pulse audio)"
+echo "==> Wrote configs (GPU texture decode, ALSA audio — avoids 30s cubeb/PipeWire timeout)"
 
-# ---- 6. write kill-monitor + launcher wrapper --------------------------------
+# Explicitly disable all Wiimote slots — Melee is GC only and we never want
+# Wiimote emulation accidentally active.
+cat > "$DIST/User/Config/WiimoteNew.ini" <<'WIIINI'
+[Wiimote1]
+Source = 0
+[Wiimote2]
+Source = 0
+[Wiimote3]
+Source = 0
+[Wiimote4]
+Source = 0
+[BalanceBoard]
+Source = 0
+WIIINI
 
-echo "==> Writing kill-monitor..."
-cat > "$DIST/kill-monitor" <<'KILLMON'
-#!/usr/bin/env python3
-"""Inject ESC (graceful Stop) into Dolphin when Start+Select held 3 seconds."""
-import struct, time, os, select, glob, fcntl
+cat > "$DIST/User/Config/Logger.ini" <<'LOGINI'
+[Options]
+WriteToFile = False
+WriteToConsole = False
+LOGINI
 
-EVENT_FMT  = 'QQHHi'
-EVENT_SIZE = struct.calcsize(EVENT_FMT)
-EV_KEY     = 0x01
-BTN_SELECT = 314
-BTN_START  = 315
-HOLD_SECS  = 3.0
-
-def find_device():
-    try:
-        content = open('/proc/bus/input/devices').read()
-        for devpath in sorted(glob.glob('/dev/input/event*')):
-            name = os.path.basename(devpath)
-            idx  = content.find(name)
-            if idx == -1:
-                continue
-            block = content[content.rfind('\n\n', 0, idx):content.find('\n\n', idx)]
-            if 'Xbox' in block or 'Odin' in block:
-                return devpath
-    except Exception:
-        pass
-    return '/dev/input/event8'
-
-def send_esc():
-    UI_SET_EVBIT   = 0x40045564
-    UI_SET_KEYBIT  = 0x40045565
-    UI_DEV_CREATE  = 0x5501
-    UI_DEV_DESTROY = 0x5502
-    EV_SYN = 0x00
-    KEY_ESC = 1
-    FMT = 'QQHHi'
-    try:
-        fd = os.open('/dev/uinput', os.O_WRONLY | os.O_NONBLOCK)
-        fcntl.ioctl(fd, UI_SET_EVBIT, EV_KEY)
-        fcntl.ioctl(fd, UI_SET_KEYBIT, KEY_ESC)
-        os.write(fd, struct.pack('80sHHHHi256i', b'slippi-exit', 0, 0, 0, 0, 0, *([0]*256)))
-        fcntl.ioctl(fd, UI_DEV_CREATE)
-        time.sleep(0.05)
-        t = int(time.time())
-        os.write(fd, struct.pack(FMT, t, 0, EV_KEY, KEY_ESC, 1))
-        os.write(fd, struct.pack(FMT, t, 0, EV_SYN, 0, 0))
-        os.write(fd, struct.pack(FMT, t, 0, EV_KEY, KEY_ESC, 0))
-        os.write(fd, struct.pack(FMT, t, 0, EV_SYN, 0, 0))
-        time.sleep(0.05)
-        fcntl.ioctl(fd, UI_DEV_DESTROY)
-        os.close(fd)
-    except Exception:
-        os.system('killall dolphin-emu')
-
-held       = set()
-hold_start = None
-
-try:
-    with open(find_device(), 'rb') as f:
-        while True:
-            r, _, _ = select.select([f], [], [], 0.1)
-            if r:
-                data = f.read(EVENT_SIZE)
-                if not data or len(data) < EVENT_SIZE:
-                    break
-                _, _, etype, code, value = struct.unpack(EVENT_FMT, data)
-                if etype == EV_KEY:
-                    if value == 1:
-                        held.add(code)
-                    elif value == 0:
-                        held.discard(code)
-                    if BTN_SELECT in held and BTN_START in held:
-                        if hold_start is None:
-                            hold_start = time.time()
-                    else:
-                        hold_start = None
-            if hold_start and BTN_SELECT in held and BTN_START in held:
-                if time.time() - hold_start >= HOLD_SECS:
-                    send_esc()
-                    break
-except Exception:
-    pass
-KILLMON
-chmod +x "$DIST/kill-monitor"
+# ---- 6. launcher wrapper --------------------------------
 
 echo "==> Writing launcher wrapper..."
 cat > "$DIST/slippi-dolphin" <<'WRAPPER'
@@ -394,9 +346,6 @@ export LD_LIBRARY_PATH="$SCRIPT_DIR/libs${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export GDK_PIXBUF_MODULE_FILE="$SCRIPT_DIR/gdk-loaders/loaders.cache"
 export GDK_PIXBUF_MODULEDIR="$SCRIPT_DIR/gdk-loaders"
 export ALSA_PLUGIN_DIR="/usr/lib/alsa-lib"
-# ROCKNIX puts the PulseAudio socket at /run/pulse/native instead of the
-# default /run/user/0/pulse/native — libpulse won't find it without this.
-export PULSE_SERVER="unix:/run/pulse/native"
 # ROCKNIX nightly (20260508+) switched to Sway (Wayland). Terminals opened inside
 # the Sway session inherit WAYLAND_DISPLAY, which causes GTK to pick Wayland and
 # crash because Dolphin calls X11-specific GTK/Qt APIs. Force X11 through XWayland.
@@ -418,15 +367,19 @@ for cpu in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
     echo performance > "$cpu" 2>/dev/null || true
 done
 
-# Start+Select held 3s sends ESC to gracefully stop emulation
-"$SCRIPT_DIR/kill-monitor" &
-MONITOR_PID=$!
+# Use ROCKNIX's gptokeyb to handle Select+Start quit combo.
+# Must init control config so gptokeyb knows the controller + SDL DB path.
+control-gen_init.sh 2>/dev/null || true
+source /storage/.config/gptokeyb/control.ini 2>/dev/null || true
+get_controls 2>/dev/null || true
+${GPTOKEYB:-/usr/bin/gptokeyb} "dolphin-emu" xbox360 &
+GPTOKEYB_PID=$!
 
 mkdir -p "$SCRIPT_DIR/User/Logs"
 "$SCRIPT_DIR/dolphin-emu" "$@" 2>>"$SCRIPT_DIR/User/Logs/launcher.log"
 STATUS=$?
 
-kill "$MONITOR_PID" 2>/dev/null
+kill "$GPTOKEYB_PID" 2>/dev/null
 
 # Restore CPU governors
 for entry in $PREV_GOVS; do
@@ -475,7 +428,7 @@ if [[ -n "$ROCKNIX_IP" ]]; then
     ROCKNIX_PASS="${ROCKNIX_PASS:-rocknix}"
     echo "==> Transferring to $ROCKNIX_DEST ..."
     sshpass -p "$ROCKNIX_PASS" ssh -o StrictHostKeyChecking=no "root@${ROCKNIX_IP}" \
-        "rm -rf /storage/slippi-dolphin && mkdir -p /storage/slippi-dolphin"
+        "mkdir -p /storage/slippi-dolphin && find /storage/slippi-dolphin -mindepth 1 -maxdepth 1 -not -name 'User' -exec rm -rf {} +"
     cd "$(dirname "$DIST")" && \
         tar -cf - "$(basename "$DIST")" | \
         sshpass -p "$ROCKNIX_PASS" ssh -o StrictHostKeyChecking=no "root@${ROCKNIX_IP}" \
@@ -500,8 +453,19 @@ if [[ -n "$ROCKNIX_IP" ]]; then
         fi
     "
     echo ""
-    echo "Done. Test with:"
-    echo "  /storage/slippi-dolphin/slippi-dolphin /path/to/GALE01.iso"
+    echo "==> Installing Ports entry..."
+    sshpass -p "$ROCKNIX_PASS" ssh -o StrictHostKeyChecking=no "root@${ROCKNIX_IP}" "
+        mkdir -p /storage/roms/ports &&
+        cat > '/storage/roms/ports/Slippi Melee.sh' <<'EOF'
+#!/bin/bash
+/storage/slippi-dolphin/slippi-dolphin -b -e /storage/roms/gamecube/melee102.iso
+EOF
+        chmod +x '/storage/roms/ports/Slippi Melee.sh' &&
+        echo '    Ports entry written to /storage/roms/ports/Slippi Melee.sh'
+    "
+    echo ""
+    echo "Done. Launch from EmulationStation → Ports → Slippi Melee"
+    echo "  or: /storage/slippi-dolphin/slippi-dolphin /path/to/GALE01.iso"
 else
     echo "To deploy to your Thor (SSH must be enabled in ROCKNIX settings):"
     echo "  bash scripts/deploy-rocknix.sh <thor-ip>"

@@ -529,7 +529,6 @@ void EmuThread()
 		Host_Message(WM_USER_STOP);
 		return;
 	}
-
 	bool init_controllers = false;
 	if (!g_controller_interface.IsInit())
 	{
@@ -544,7 +543,6 @@ void EmuThread()
 		Pad::LoadConfig();
 		Keyboard::LoadConfig();
 	}
-
 	// Load and Init Wiimotes - only if we are booting in Wii mode
 	if (core_parameter.bWii && !SConfig::GetInstance().m_bt_passthrough_enabled)
 	{

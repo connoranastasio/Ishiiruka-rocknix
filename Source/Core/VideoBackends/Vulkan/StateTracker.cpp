@@ -123,22 +123,20 @@ void StateTracker::LoadPipelineUIDCache()
 	class PipelineInserter final : public LinearDiskCacheReader<SerializedPipelineUID, u32>
 	{
 	public:
-		explicit PipelineInserter(StateTracker* this_ptr_) : this_ptr(this_ptr_) {}
-		void Read(const SerializedPipelineUID& key, const u32* value, u32 value_size)
+		explicit PipelineInserter(StateTracker* this_ptr) : this_ptr(this_ptr) {}
+		void Read(const SerializedPipelineUID& key, const u32*, u32)
 		{
 			this_ptr->PrecachePipelineUID(key);
 		}
-
 	private:
 		StateTracker* this_ptr;
-	};
+	} inserter(this);
 
-	std::string filename = g_object_cache->GetDiskUIDCacheFileName();
-	PipelineInserter inserter(this);
+	m_uid_cache.OpenAndRead(g_object_cache->GetDiskUIDCacheFileName(), inserter);
 
-	// OpenAndRead calls Close() first, which will flush all data to disk when reloading.
-	// This assertion must hold true, otherwise data corruption will result.
-	m_uid_cache.OpenAndRead(filename, inserter);
+	// Save the driver-compiled pipeline binary immediately after precaching so it survives
+	// hard kills (SIGKILL). On next boot the driver loads the binary and skips recompilation.
+	g_object_cache->SavePipelineCache();
 }
 
 void StateTracker::AppendToPipelineUIDCache(const PipelineInfo& info)
