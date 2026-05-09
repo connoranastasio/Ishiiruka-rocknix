@@ -1,36 +1,35 @@
 # Slippi Dolphin for ROCKNIX (aarch64)
 
-> **Beta / Proof of Concept.** This is a work in progress. Online play works, but there are known issues documented below. Contributions welcome.
+> **Prerelease / Proof of Concept.** This is a work in progress. Online play works, but there are known issues documented below. Contributions welcome.
 
-A port of [Slippi Ishiiruka](https://github.com/project-slippi/Ishiiruka) to ROCKNIX on aarch64 devices. Tested on the **AYN Thor Max** (Snapdragon 8 Gen 2, Adreno 740). The AYN Odin2 shares the same SoC and should work but has not been tested yet.
+A port of [Slippi Ishiiruka](https://github.com/project-slippi/Ishiiruka) to ROCKNIX on aarch64 devices. Tested on the **AYN Thor Max** (Snapdragon 8 Gen 2, Adreno 740). The AYN Odin2 shares the same SoC and should work but has not been tested yet. I don't have any other ROCKNIX devices to test on.
 
-> **ROCKNIX compatibility note:** [ROCKNIX](https://github.com/ROCKNIX/distribution-nightly) is itself still in prerelease and its nightly builds change frequently. This port was developed and tested against **ROCKNIX nightly-20260508**. Newer nightly builds may change the display server, audio stack, or system library paths in ways that break compatibility. If something stops working after a ROCKNIX update, check the known issues section and open an issue with your ROCKNIX version.
+> **ROCKNIX compatibility note:** [ROCKNIX](https://github.com/ROCKNIX/distribution-nightly) is itself still in prerelease and its features change frequently. This port was developed with **ROCKNIX nightly-20260508**. Newer nightly builds may change the display server, audio stack, or system library paths in ways that break compatibility. If something stops working after a ROCKNIX update, check the known issues section and open an issue with your nightly version.
 
 ---
 
 ## What's fixed
 
-Vanilla Ishiiruka has several issues on aarch64 + Adreno GPUs that this fork addresses:
+The initial build had several issues on aarch64 + Adreno GPUs that needed to be addressed:
 
 - **Colored rectangles at hit contact points** — Adreno 740 uses ASTC, not BC/DXT compression. Ishiiruka unconditionally claimed DXT support, causing CMPR textures to be uploaded as `VK_FORMAT_BC2_UNORM_BLOCK` and rendering as solid colored squares. Fixed by gating on `features.textureCompressionBC`.
 - **Effect/fire textures wrong color or square** — Fixed by enabling GPU texture decoding in the Vulkan backend, which decodes all textures natively on the GPU bypassing the CPU path that had R↔B channel swaps on ARM.
 - **No audio on ROCKNIX nightly (Sway/PipeWire)** — Fixed by using the Cubeb audio backend and pinning `PULSE_SERVER` to ROCKNIX's non-standard socket path (`/run/pulse/native`).
 - **Crash when launching from Sway terminal** — ROCKNIX nightly switched to Sway (Wayland). Terminals inherit `WAYLAND_DISPLAY`, causing GTK to pick Wayland and crash on X11-specific API calls. Fixed by forcing `GDK_BACKEND=x11` and `QT_QPA_PLATFORM=xcb` through XWayland.
-- **Sluggish emulation / audio underruns** — ROCKNIX nightly defaults to the `ondemand` CPU governor, leaving cores at ~1 GHz. The launcher pins all cores to `performance` for the session and restores the original governor on exit.
-- **Wrong aspect ratio** — Set to 73:60 (Ishiiruka native value `5`), matching the intended Slippi default for competitive play.
+- **Sluggish emulation / audio underruns** — ROCKNIX nightly defaults to the `ondemand` CPU governor, leaving cores at ~1 GHz. The launcher pins all cores to `performance` for the session and restores the original governor on exit. This unfortunately drains the battery faster than necessary, and will hopefully be fixed at some point.
 
 ---
 
 ## Known issues
 
-This is a beta. The following issues are known and not yet fixed:
+The following issues are known and not yet fixed:
 
-- **Launch and exit must be done over SSH.** There is no in-game button combo to quit yet, and no EmulationStation integration. You must SSH into the device to launch and kill the process. See [Usage](#usage) below.
-- **~10 second boot delay before the game starts.** The Vulkan backend pre-compiles all cached shader pipelines synchronously before launching the game. The cache grows with playtime. Fix in progress (async per-frame compilation during matchmaking window).
+- **Launch and exit must be done over SSH.** There is no in-game button combo to quit yet, and no EmulationStation integration. You must SSH into the device to launch and kill the process. See [Usage](#usage) below. 
+- **~10-15 second boot delay before the game starts.** The Vulkan backend pre-compiles all cached shader pipelines synchronously before launching the game. The cache grows with playtime. Fix in progress (maybe async compilation after boot, during matchmaking window?).
 - **GTK warnings on startup** (`gtk_box_gadget_distribute`, `Could not load a pixbuf from bullet-symbolic.svg`). These are cosmetic — settings dialogs render slightly incorrectly but function normally. Does not affect gameplay.
-- **"Desync risk" warning in the corner.** Triggered by `EnableGPUTextureDecoding = True`, which we require on Adreno to fix texture artifacts. This setting only affects rendering, not game state, and cannot cause a desync. Warning is a false positive.
+- **"Desync risk" warning during gameplay** Triggered by `EnableGPUTextureDecoding = True`, which we require on Adreno to fix texture artifacts. This setting only affects rendering, not game state, and should not be able to cause a desync. Warning is a very likely a false positive, and I've had no issues so far.
 - **Settings changed in the GUI may not persist correctly.** All important settings are managed via the deploy script and written directly to ini files. Use the deploy script to change settings rather than the in-game GUI.
-- **No GameCube controller adapter support verified.** The udev rule is deployed but untested on this hardware revision.
+- **No GameCube controller adapter support verified yet.** Not really an issue, but I just haven't tested it yet. Played using an Input Integrity adapter. The udev rule is deployed so it might work, idk.
 
 ---
 
@@ -42,7 +41,7 @@ This is a beta. The following issues are known and not yet fixed:
 
 ---
 
-## Install (pre-built)
+## Install (pre-built) (SOON!!)
 
 Download the latest release tarball and extract to `/storage/`:
 
